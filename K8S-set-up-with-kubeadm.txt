@@ -1,0 +1,67 @@
+********************SET UP A K8S CLUSTER USING KUBEADM UBUNTU 20.0.4*******************
+*REQUIREMENTS:
+-Master: 2 CPUs
+-Workers: 1 CPUs
+-Since this is just for Test, please allow All traffics from Anywhere on your VMs
+
+
+STEP1: ON MASTERS AND WORKERS 
+THIS STEP CAN BE COPIED AND PASTED AS A SCRIPT UNDER USER DATA.
+
+#!/bin/bash
+#on both Masters and workers
+apt-get update
+ufw disable
+swapoff -a; sed -i '/swap/d' /etc/fstab
+cat >>/etc/sysctl.d/kubernetes.conf<<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF
+sysctl --system
+apt install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+apt update
+apt install -y docker-ce=5:19.03.10~3-0~ubuntu-focal containerd.io
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+echo "deb https://apt.kubernetes.io/ kubernetes-xenial main" > /etc/apt/sources.list.d/kubernetes.list
+apt update && apt install -y kubeadm=1.18.5-00 kubelet=1.18.5-00 kubectl=1.18.5-00
+
+
+STEP2: ON THE MASTER NODE ONLY
+CREATE A FILE ON YOUR MASTER NODE PASTE THE SCRIPT BELOW INTO THAT FILE, GIVE IT AN EXECUTE PERMISSION AND EXECUTE IT AS A REGULAR USER
+===> REMEMBER TO UPDATE THE --apiserver-advertise-address WITH THE PRIVATE IP OF YOUR MASTER NODE.
+
+#!/bin/bash
+#on master only
+sudo kubeadm init --apiserver-advertise-address=172.31.18.157 --pod-network-cidr=192.168.0.0/16  --ignore-preflight-errors=all
+sudo kubectl --kubeconfig=/etc/kubernetes/admin.conf create -f https://docs.projectcalico.org/v3.14/manifests/calico.yaml
+sudo kubeadm token create --print-join-command
+sudo mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+
+STEP3: ON THE MASTER NODE
+1- Go for about 25 lines up and look for the command needed by workers Nodes to join the cluster and copy it. it is similar to the command below:
+kubeadm join 172.31.18.157:6443 --token b8zzzg.18k9zoqo3r8k9f8u \
+    --discovery-token-ca-cert-hash sha256:31289a2df8b01c7d64c799820ba43fbf259731b9682f2437b44e89310be68b68 
+2- run a quick test command like "kubectl get nodes" and you should have an output similar to the one below:
+ip-172-31-18-157   Ready    master   3m42s   v1.18.5
+
+STEP4: ON ALL WORKERS NODES ONLY
+Paste the kubeadm join command you copied from the master Node and execute it as user ROOT.
+
+
+STEP5: ON THE MASTER NODE
+Try to list your nodes again using "kubectl get nodes" command and you should be able to see not only your Master Node as you saw
+earlier, but also your workers.
+
+*********************************YOUR CLUSTER IS READY********************************
+
+==> IF YOU HAVE ANY PROBLEM WHILE SETTING UP YOUR CLUSTER, PLEASE SEND ME AN EMAIL WITH A CLEAR DESCRIPTION OF YOUR ISSUE 
+ALONG WITH SCREENSHOTS AND CONTACTS AS POSSIBLE SO THAT I CAN ASSIST YOU BETTER.
+
+
+By: WULIO
+Email: wuliokenfack@yahoo.com
